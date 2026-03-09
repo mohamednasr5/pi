@@ -70,7 +70,7 @@
     padding: 4px 10px; border-radius: 20px; font-size: 11px; color: var(--accent-green);
     font-family: 'IBM Plex Mono';
   }
-  .dot { width: 6px; height: 6px; background: var(--accent-green); border-radius: 50%; animation: pulse 1.5s infinite; }
+  .dot { width: 6px; height: 6px; background: var(--accent-green); border-radius: 50%; animation: pulse 1s infinite; }
   @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
 
   /* === التخطيط العام === */
@@ -95,7 +95,7 @@
   .price-hero::after {
     content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 2px;
     background: linear-gradient(90deg, transparent, var(--accent-gold), transparent);
-    animation: slide 3s infinite linear;
+    animation: slide 2s infinite linear; /* سرعة الحركة */
   }
   @keyframes slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
 
@@ -139,7 +139,7 @@
     border-left-color: var(--accent-gold);
     border-bottom-color: transparent;
     transform: rotate(-45deg);
-    transition: all 0.8s ease;
+    transition: all 0.5s ease; /* تسريع حركة المؤشر */
     clip-path: polygon(0 0, 100% 0, 100% 50%, 0 50%); /* قص النصف السفلي */
     opacity: 0.8;
   }
@@ -229,11 +229,11 @@
     <div class="logo-icon">π</div>
     <div class="logo-text">
       <h1>PI-USDT Expert</h1>
-      <p>AI POWERED TRADING TERMINAL</p>
+      <p>REAL-TIME (2s UPDATE)</p>
     </div>
   </div>
   <div class="live-badge">
-    <div class="dot"></div> LIVE DATA
+    <div class="dot"></div> LIVE
   </div>
 </div>
 
@@ -278,8 +278,8 @@
     <!-- الرسم البياني -->
     <div class="panel">
       <div class="panel-header">
-        <div class="panel-title">📈 حركة السعر (Live)</div>
-        <div style="font-size: 11px; color: var(--text-muted);" id="updateTimer">جاري التحديث...</div>
+        <div class="panel-title">📈 حركة السعر (Real-Time)</div>
+        <div style="font-size: 11px; color: var(--accent-green);" id="updateTimer">جاري التحديث...</div>
       </div>
       <div class="chart-container">
         <canvas id="priceChart"></canvas>
@@ -289,7 +289,7 @@
     <!-- المؤشرات -->
     <div class="panel">
       <div class="panel-header">
-        <div class="panel-title">🔬 المؤشرات الفنية (Live Calculated)</div>
+        <div class="panel-title">🔬 المؤشرات الفنية (Instant)</div>
       </div>
       <div class="indicators-grid">
         <div class="ind-card">
@@ -329,9 +329,8 @@
 
     <div class="chat-area" id="chatArea">
       <div class="msg ai">
-        أهلاً بك يا صديقي! 👋<br>
-        أنا مساعدك الذكي لتحليل عملة PI-USDT. أستخدم البيانات الحية والمؤشرات الفنية لمساعدتك في اتخاذ القرار.<br><br>
-        كيف يمكنني مساعدتك الآن؟
+        مرحباً! أنا متصل بالسوق لحظياً. السعر يتحدث كل ثانيتين.<br><br>
+        اسألني عن أي تحليل فني للعملة الآن!
         <span class="time">Now</span>
       </div>
     </div>
@@ -396,7 +395,7 @@
           x: { display: true, grid: { color: '#2a2e35' }, ticks: { color: '#90a4ae', font: {size: 10} } },
           y: { display: true, grid: { color: '#2a2e35' }, ticks: { color: '#90a4ae', font: {size: 10} } }
         },
-        animation: { duration: 0 }
+        animation: { duration: 0 } // تعطيل الحركة البطيئة لضمان التحديث السريع
       }
     });
   }
@@ -448,7 +447,7 @@
     document.getElementById('low24').textContent = low.toFixed(4);
     document.getElementById('vol24').textContent = (vol / 1000000).toFixed(2) + 'M';
     
-    document.getElementById('updateTimer').textContent = 'آخر تحديث: ' + new Date().toLocaleTimeString('ar-EG');
+    document.getElementById('updateTimer').textContent = 'تحديث: ' + new Date().toLocaleTimeString('ar-EG');
   }
 
   function updateChart(price) {
@@ -674,7 +673,9 @@
   window.onload = function() {
     initChart();
     fetchMarketData();
-    setInterval(fetchMarketData, 5000); // تحديث كل 5 ثواني
+    
+    // ⚡ تم تغيير التوقيت هنا من 5000 إلى 2000 (ثانيتين)
+    setInterval(fetchMarketData, 2000); 
     
     // ترحيب أولي
     setTimeout(() => {
