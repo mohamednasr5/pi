@@ -104,6 +104,7 @@ body {
   padding: 16px;
   max-width: 1700px;
   margin: 0 auto;
+  align-items: start;
 }
 
 /* ── PRICE STRIP ── */
@@ -259,7 +260,6 @@ body {
   border-radius: 14px;
   display: flex; flex-direction: column;
   height: 520px;
-  position: sticky; top: 76px;
   overflow: hidden;
 }
 .ai-header {
@@ -464,6 +464,7 @@ svg.gauge-svg { overflow: visible; }
   <div class="header-right">
     <div class="live-dot" id="liveDot"></div>
     <div class="conn-text" id="connTxt">متصل</div>
+    <div style="font-size:10px;color:var(--muted);font-family:'Space Mono'" id="lastUpdate">--</div>
     <div class="clock" id="clockEl">--:--:--</div>
   </div>
 </header>
@@ -746,7 +747,8 @@ svg.gauge-svg { overflow: visible; }
 // ═══════════════════════════════════════════════════
 //  CORE CONFIG
 // ═══════════════════════════════════════════════════
-const SYM = 'PI-USDT';
+const Symbol = 'PI-USDT';
+const PiApiUrl = `https://www.okx.com/api/v5/market/ticker?instId=${Symbol}`;
 const PROXY = url => 'https://corsproxy.io/?' + encodeURIComponent(url);
 const OKX = 'https://www.okx.com/api/v5/market';
 
@@ -754,7 +756,7 @@ const OKX = 'https://www.okx.com/api/v5/market';
 //  STATE
 // ═══════════════════════════════════════════════════
 let state = {
-  price: 0, open: 0, high: 0, low: 0,
+  price: 0, open: 0, high: 0, low: 0, vol: 0,
   candles: [], tf: '1m',
   asks: [], bids: [],
   trades: [],
@@ -872,7 +874,7 @@ function renderVolBars() {
 // ═══════════════════════════════════════════════════
 async function fetchCandles() {
   try {
-    const url = PROXY(`${OKX}/candles?instId=${SYM}&bar=${state.tf}&limit=60`);
+    const url = PROXY(`${OKX}/candles?instId=${Symbol}&bar=${state.tf}&limit=60`);
     const r = await fetch(url);
     if (!r.ok) throw new Error('bad response');
     const j = await r.json();
@@ -889,39 +891,52 @@ async function fetchCandles() {
 }
 
 // ═══════════════════════════════════════════════════
-//  FETCH TICKER
+//  FETCH TICKER — uses PiApiUrl directly
 // ═══════════════════════════════════════════════════
 async function fetchTicker() {
-  try {
-    const url = PROXY(`${OKX}/ticker?instId=${SYM}`);
-    const r = await fetch(url);
-    const ct = r.headers.get('content-type');
-    if (!ct?.includes('application/json')) throw new Error('not json');
-    const j = await r.json();
-    if (!j.data?.[0]) throw new Error('no data');
+  // Try direct first, then two proxy fallbacks
+  const urls = [
+    PiApiUrl,
+    PROXY(PiApiUrl),
+    'https://api.allorigins.win/raw?url=' + encodeURIComponent(PiApiUrl)
+  ];
 
-    const d = j.data[0];
-    state.price = +d.last;
-    state.open  = +d.open24h;
-    state.high  = +d.high24h;
-    state.low   = +d.low24h;
+  for (const url of urls) {
+    try {
+      const r = await fetch(url, { cache: 'no-store' });
+      if (!r.ok) continue;
+      const ct = r.headers.get('content-type') || '';
+      const text = await r.text();
+      // Make sure it's JSON not HTML error page
+      if (!text.trim().startsWith('{')) continue;
+      const j = JSON.parse(text);
+      if (!j.data?.[0]) continue;
 
-    setConnected(true);
-    updatePriceStrip();
-    checkAlerts();
-    simulateTrade();
-    computeSupportResistance();
+      const d = j.data[0];
+      state.price = +d.last;
+      state.open  = +d.open24h;
+      state.high  = +d.high24h;
+      state.low   = +d.low24h;
+      state.vol   = +d.volCcy24h;
 
-    // live candle update
-    if (state.candles.length) {
-      state.candles[state.candles.length-1].c = state.price;
-      updateChart();
-    }
+      setConnected(true);
+      updatePriceStrip();
+      checkAlerts();
+      simulateTrade();
+      computeSupportResistance();
+      document.getElementById('lastUpdate').textContent = '↻ ' + new Date().toLocaleTimeString('ar-EG');
 
-  } catch(e) {
-    console.error('ticker', e);
-    setConnected(false);
+      // live candle update
+      if (state.candles.length) {
+        state.candles[state.candles.length-1].c = state.price;
+        updateChart();
+      }
+      return; // success — stop trying
+    } catch(e) { /* try next */ }
   }
+
+  // All failed
+  setConnected(false);
 }
 
 // ═══════════════════════════════════════════════════
@@ -929,7 +944,7 @@ async function fetchTicker() {
 // ═══════════════════════════════════════════════════
 async function fetchDepth() {
   try {
-    const url = PROXY(`${OKX}/books?instId=${SYM}&sz=10`);
+    const url = PROXY(`${OKX}/books?instId=${Symbol}&sz=10`);
     const r = await fetch(url);
     const j = await r.json();
     if (!j.data?.[0]) return;
@@ -993,9 +1008,9 @@ function updatePriceStrip() {
   document.getElementById('lo24').textContent = state.low.toFixed(4);
   document.getElementById('lo24').classList.remove('shimmer');
 
-  // Fake volume for display
-  const vol = (Math.random() * 50 + 150).toFixed(2);
-  document.getElementById('vl24').textContent = vol + 'M';
+  // Real volume from API
+  const vol = state.vol ? (state.vol / 1000000).toFixed(2) + 'M' : '--';
+  document.getElementById('vl24').textContent = vol;
   document.getElementById('vl24').classList.remove('shimmer');
 
   // ATH / ATL (session)
@@ -1374,11 +1389,13 @@ async function boot() {
   await fetchCandles();
   await fetchTicker();
 
-  // Update ticker every 2s
+  // ✅ تحديث السعر كل 2 ثانية بالضبط — PI-USDT من OKX
   setInterval(fetchTicker, 2000);
-  // Update candles every 30s
+
+  // تحديث الشموع كل 30 ثانية
   setInterval(fetchCandles, 30000);
-  // Update depth every 5s
+
+  // تحديث دفتر الأوامر كل 5 ثواني
   setInterval(fetchDepth, 5000);
   fetchDepth();
 }
